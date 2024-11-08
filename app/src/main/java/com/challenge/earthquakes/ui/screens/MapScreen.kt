@@ -27,7 +27,6 @@ import com.amap.api.location.CoordinateConverter.CoordType
 import com.amap.api.location.DPoint
 import com.amap.api.maps.CameraUpdateFactory
 import com.amap.api.maps.MapView
-import com.amap.api.maps.MapsInitializer
 import com.amap.api.maps.model.LatLng
 import com.amap.api.maps.model.MarkerOptions
 import java.text.SimpleDateFormat
@@ -79,7 +78,14 @@ fun MapScreen(
                     7f  // 初始缩放级别
                 )
             )
-            mapView.map.addMarker(MarkerOptions().position(LatLng(desLatLng.latitude, desLatLng.longitude)))
+            mapView.map.addMarker(
+                MarkerOptions().position(
+                    LatLng(
+                        desLatLng.latitude,
+                        desLatLng.longitude
+                    )
+                )
+            )
             AndroidView({ mapView }, Modifier.padding(innerPadding))
         }
     }

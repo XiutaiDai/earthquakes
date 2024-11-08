@@ -1,6 +1,8 @@
 package com.challenge.earthquakes.ui.screens
 
 import android.annotation.SuppressLint
+import android.app.AlertDialog
+import android.content.Context
 import android.os.Build
 import android.text.format.DateFormat
 import androidx.compose.foundation.clickable
@@ -39,69 +41,120 @@ fun EarthquakeListScreen(navController: NavController, viewModel: EarthquakeView
     val context = LocalContext.current
     val loading = viewModel.loading
     val earthquakes = viewModel.earthquakes
+
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("USGS Earthquakes") },
-            )
-        }, containerColor = MaterialTheme.colorScheme.inversePrimary
+            TopAppBar(title = { Text("USGS Earthquakes") })
+        },
+        containerColor = MaterialTheme.colorScheme.inversePrimary
     ) { innerPadding ->
-        if (loading) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
+        when {
+            loading -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(48.dp).align(Alignment.CenterHorizontally)
-                    )
-                    Text("数据加载中...",
-                        Modifier.padding(8.dp).align(Alignment.CenterHorizontally),
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    LoadingIndicator()
                 }
             }
-            return@Scaffold
-        }
-        if (earthquakes.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("没有数据...",
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.titleLarge
-                )
-            }
-            return@Scaffold
-        }
-        LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = innerPadding) {
-            for (earthquake in earthquakes) {
-                item {
-                    EarthquakeListItem(
-                        earthquake = earthquake,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(8.dp)
-                            .clickable {
-                                // TODO:需弹窗提示用户高德地图隐私政策，并要求同意，初始化地图 SDK, 此处暂时默认己提示并同意隐私政策
-                                MapsInitializer.initialize(context)
-                                MapsInitializer.updatePrivacyShow(context, true, true)
-                                MapsInitializer.updatePrivacyAgree(context, true)
-                                // 导航到显示地图的屏幕，传递地震位置信息
-                                val coordinates = earthquake.geometry.coordinates
-                                val place = earthquake.properties.place
-                                val time = earthquake.properties.time
-                                navController.navigate("earthquake_map/${coordinates}/${place}/${time}")
 
-                            },
-                    )
+            earthquakes.isEmpty() -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    NoDataText()
+                }
+            }
+
+            else -> {
+                LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = innerPadding) {
+                    items(earthquakes.size) { idx ->
+                        val earthquake = earthquakes[idx]
+                        EarthquakeListItem(
+                            earthquake = earthquake,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(8.dp)
+                                .clickable {
+                                    navigateToMapScreen(navController, context, earthquake)
+                                }
+                        )
+                    }
                 }
             }
         }
     }
+}
+
+@Composable
+fun LoadingIndicator() {
+    Column {
+        CircularProgressIndicator(
+            modifier = Modifier
+                .size(48.dp)
+                .align(Alignment.CenterHorizontally)
+        )
+        Text(
+            "数据加载中...",
+            Modifier
+                .padding(8.dp)
+                .align(Alignment.CenterHorizontally),
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
+}
+
+@Composable
+fun NoDataText() {
+    Text(
+        "没有数据...",
+        color = MaterialTheme.colorScheme.primary,
+        style = MaterialTheme.typography.titleLarge
+    )
+}
+
+fun navigateToMapScreen(
+    navController: NavController,
+    context: Context,
+    earthquake: Earthquake
+) {
+    val sharedPreferences = context.getSharedPreferences("PrivacyPrefs", Context.MODE_PRIVATE)
+    val hasShownPrivacyDialog = sharedPreferences.getBoolean("hasShownPrivacyDialog", false)
+
+    if (!hasShownPrivacyDialog) {
+        val builder = AlertDialog.Builder(context)
+        builder.setTitle("高德地图隐私政策")
+        builder.setMessage("我们需要您同意高德地图的隐私政策才能使用地图功能。以下是隐私政策的详细内容...")
+        builder.setPositiveButton("同意") { _, _ ->
+            val editor = sharedPreferences.edit()
+            editor.putBoolean("hasShownPrivacyDialog", true)
+            editor.apply()
+            initializeMapSDK(context)
+            navigateToMap(navController, earthquake)
+        }
+        builder.setNegativeButton("不同意") { dialog, _ ->
+            dialog.dismiss()
+        }
+        builder.show()
+    } else {
+        initializeMapSDK(context)
+        navigateToMap(navController, earthquake)
+    }
+}
+
+private fun initializeMapSDK(context: Context) {
+    MapsInitializer.initialize(context)
+    MapsInitializer.updatePrivacyShow(context, true, true)
+    MapsInitializer.updatePrivacyAgree(context, true)
+}
+
+private fun navigateToMap(navController: NavController, earthquake: Earthquake) {
+    val coordinates = earthquake.geometry.coordinates
+    val place = earthquake.properties.place
+    val time = earthquake.properties.time
+    navController.navigate("earthquake_map/${coordinates}/${place}/${time}")
 }
 
 @SuppressLint("ObsoleteSdkInt")
